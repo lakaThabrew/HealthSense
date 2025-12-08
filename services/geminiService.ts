@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Chat, Part, Content } from "@google/genai";
+import { GoogleGenAI, Chat, Part, Content, Modality } from "@google/genai";
 import { Profile } from "../types";
 
 const BASE_SYSTEM_INSTRUCTION = `
@@ -90,6 +90,16 @@ export const startNewChat = (history?: Content[], profile?: Profile) => {
   return chatSession;
 };
 
+// Helper to format errors
+const formatGeminiError = (error: any): string => {
+    const msg = error.message || error.toString();
+    if (msg.includes("400") || msg.includes("API_KEY")) return "Configuration Error: Invalid API Key or Request.";
+    if (msg.includes("503") || msg.includes("Overloaded")) return "Service is currently overloaded. Please try again in a moment.";
+    if (msg.includes("Failed to fetch") || msg.includes("Network")) return "Network Error: Please check your internet connection.";
+    if (msg.includes("Google Maps tool is not enabled")) return "Maps Tool Error: The location feature is temporarily unavailable.";
+    return "I encountered an unexpected error. Please try again.";
+};
+
 export const sendMessageToGemini = async (text: string, imageBase64?: string): Promise<{ text: string, groundingMetadata?: any }> => {
   if (!chatSession) {
     startNewChat();
@@ -103,46 +113,60 @@ export const sendMessageToGemini = async (text: string, imageBase64?: string): P
   while (retries < maxRetries) {
     try {
       let result;
+      const parts: Part[] = [];
 
       if (imageBase64) {
-          // Multimodal Request
           const cleanBase64 = imageBase64.split(',')[1] || imageBase64;
-          const parts: Part[] = [
-              {
-                  inlineData: {
-                      mimeType: 'image/jpeg',
-                      data: cleanBase64
-                  }
+          parts.push({
+              inlineData: {
+                  mimeType: 'image/jpeg',
+                  data: cleanBase64
               }
-          ];
-          if (text) {
-              parts.push({ text });
-          }
-          
-          result = await chatSession.sendMessage({
-              message: parts
-          });
-      } else {
-          // Text-only Request
-          result = await chatSession.sendMessage({
-              message: [{ text: text || " " }]
           });
       }
+      
+      if (text) {
+          parts.push({ text: text || " " });
+      }
+
+      result = await chatSession.sendMessage({
+          message: parts
+      });
 
       return {
         text: result.text || "I'm having trouble analyzing that. Please try again.",
         groundingMetadata: result.candidates?.[0]?.groundingMetadata
       };
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Gemini API Error (Attempt ${retries + 1}/${maxRetries}):`, error);
+      const errorMsg = error.message || "";
+
+      // Specific handling for "Google Maps tool is not enabled"
+      // If the tool fails, we retry ONCE without the tool by creating a temporary standard session
+      // preventing the app from breaking completely.
+      if (errorMsg.includes("Google Maps tool is not enabled") || errorMsg.includes("tool use is not supported")) {
+         console.warn("Tool failed, falling back to text-only mode.");
+         try {
+             if (!genAI) initializeGenAI();
+             const fallbackResponse = await genAI!.models.generateContent({
+                 model: 'gemini-2.5-flash',
+                 contents: [{ parts: [{ text: text + " (Note: Maps tool unavailable, provide general advice)" }] }]
+             });
+             return { text: fallbackResponse.text || "Maps unavailable, but here is some advice." };
+         } catch (fallbackError) {
+             throw new Error("Maps tool failed and fallback failed.");
+         }
+      }
+
       retries++;
       
       if (retries >= maxRetries) {
-        throw error;
+        throw new Error(formatGeminiError(error));
       }
       
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Exponential backoff
+      await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
     }
   }
 
@@ -158,7 +182,7 @@ export const generateSpeech = async (text: string): Promise<string | null> => {
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: text }] }],
       config: {
-        responseModalities: ['AUDIO'],
+        responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: { voiceName: 'Kore' } // 'Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'

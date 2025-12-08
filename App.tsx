@@ -44,7 +44,7 @@ const TrashIcon = () => (
 );
 
 const ImageIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
       <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
     </svg>
 );
@@ -122,6 +122,18 @@ const MoonIcon = () => (
     </svg>
 );
 
+const LockIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 text-slate-400 mb-4">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+  </svg>
+);
+
+const WarningIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 text-red-400 mb-4">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+    </svg>
+);
+
 // --- Constants ---
 const WELCOME_MSG = "Hello, I'm HealthSense. Please upload a clear photo of your visible symptom (like a rash, bite, or swelling) so I can help you understand what might be going on.\n\nRemember: I am an AI, not a doctor.";
 const OLD_STORAGE_KEY = 'hs_chat_history';
@@ -169,9 +181,18 @@ const App: React.FC = () => {
     typeof window !== 'undefined' ? window.innerWidth >= 768 : false
   );
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [scanPhase, setScanPhase] = useState<'SEARCHING' | 'LOCKING' | 'DETECTED'>('SEARCHING');
+  const [analysisNodes, setAnalysisNodes] = useState<{x: number, y: number, id: number}[]>([]);
+
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isNewProfileMode, setIsNewProfileMode] = useState(false);
   
+  // Permissions State
+  const [permissionRequest, setPermissionRequest] = useState<'camera' | 'microphone' | null>(null);
+  const [permissionStatus, setPermissionStatus] = useState<'idle' | 'denied'>('idle');
+  const [hasCameraPermission, setHasCameraPermission] = useState(false);
+  const [hasMicPermission, setHasMicPermission] = useState(false);
+
   // Diagnostics
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [diagnosticResults, setDiagnosticResults] = useState<Record<string, 'PENDING' | 'SUCCESS' | 'FAILURE'>>({});
@@ -258,6 +279,33 @@ const App: React.FC = () => {
     }
   }, []);
   
+  // Simulated Analysis Animation Loop
+  useEffect(() => {
+    let interval: any;
+    if (isCameraModalOpen && scanPhase !== 'DETECTED') {
+        // Occasionally generate random nodes
+        interval = setInterval(() => {
+            if (Math.random() > 0.6) {
+                const newNode = { 
+                    x: 20 + Math.random() * 60, // Keep central
+                    y: 20 + Math.random() * 60, 
+                    id: Date.now() 
+                };
+                setAnalysisNodes(prev => [...prev.slice(-4), newNode]); // Keep last 5
+            }
+        }, 800);
+        
+        // Simulate Locking Logic
+        if (scanPhase === 'SEARCHING') {
+            setTimeout(() => setScanPhase('LOCKING'), 3000);
+        }
+        if (scanPhase === 'LOCKING') {
+            setTimeout(() => setScanPhase('DETECTED'), 2000);
+        }
+    }
+    return () => clearInterval(interval);
+  }, [isCameraModalOpen, scanPhase]);
+
   // Sync Ref with State for event handlers
   useEffect(() => {
       voiceChatActiveRef.current = isVoiceChatOpen;
@@ -460,8 +508,51 @@ const App: React.FC = () => {
           if (onEnded) onEnded();
       }
   };
-  
-  const startVoiceChat = () => {
+
+  // --- Permission Request Handling ---
+  const requestPermission = (type: 'camera' | 'microphone') => {
+      if (type === 'camera' && hasCameraPermission) {
+          openCamera();
+          return;
+      }
+      if (type === 'microphone' && hasMicPermission) {
+          openVoiceChat();
+          return;
+      }
+      setPermissionRequest(type);
+      setPermissionStatus('idle');
+  };
+
+  const confirmPermission = async () => {
+      if (!permissionRequest) return;
+      
+      try {
+          if (permissionRequest === 'camera') {
+             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+             stream.getTracks().forEach(t => t.stop()); 
+             setHasCameraPermission(true);
+             setPermissionRequest(null);
+             openCamera();
+          } else {
+             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+             stream.getTracks().forEach(t => t.stop());
+             setHasMicPermission(true);
+             setPermissionRequest(null);
+             openVoiceChat();
+          }
+      } catch (err: any) {
+          console.error("Permission denied", err);
+          setPermissionStatus('denied');
+      }
+  };
+
+  const closePermissionModal = () => {
+      setPermissionRequest(null);
+      setPermissionStatus('idle');
+  };
+
+  // --- Voice Logic ---
+  const openVoiceChat = () => {
       if (!recognitionRef.current) {
           alert("Voice not supported in this browser.");
           return;
@@ -469,7 +560,11 @@ const App: React.FC = () => {
       stopAudio();
       setIsVoiceChatOpen(true);
       setIsListening(true);
-      recognitionRef.current.start();
+      try { recognitionRef.current.start(); } catch(e) {}
+  };
+  
+  const startVoiceChat = () => {
+      requestPermission('microphone');
   };
   
   const stopVoiceChat = () => {
@@ -539,9 +634,12 @@ const App: React.FC = () => {
           });
       }
 
-    } catch (error) {
+    } catch (error: any) {
       setMessages(prev => [...prev, {
-          id: (Date.now() + 1).toString(), role: Role.MODEL, text: "I'm sorry, I encountered an error. Please try again.", isError: true
+          id: (Date.now() + 1).toString(), 
+          role: Role.MODEL, 
+          text: error.message || "I'm sorry, I encountered an unexpected error. Please try again.", 
+          isError: true
       }]);
     } finally {
       setIsLoading(false);
@@ -588,18 +686,26 @@ const App: React.FC = () => {
   };
 
   // --- Camera Logic ---
-  const startCamera = async () => {
+  const startCamera = () => {
+      requestPermission('camera');
+  };
+
+  const openCamera = async () => {
     stopAudio();
     setIsCameraModalOpen(true);
+    setScanPhase('SEARCHING');
+    setAnalysisNodes([]);
+    
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         if (videoRef.current) {
             videoRef.current.srcObject = stream;
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error("Camera error", err);
-        alert("Unable to access camera. Please upload a file instead.");
         setIsCameraModalOpen(false);
+        // Error is handled upstream usually, but safe catch here
+        alert("Unable to access camera. It may be in use or blocked.");
     }
   };
 
@@ -1077,6 +1183,9 @@ const App: React.FC = () => {
 
             <div className="max-w-4xl mx-auto flex flex-col space-y-2">
             <div className="flex items-end space-x-2">
+                <button onClick={() => fileInputRef.current?.click()} className="p-3 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition flex-shrink-0" title="Upload Photo">
+                    <ImageIcon />
+                </button>
                 <button onClick={startCamera} className={`p-3 rounded-full transition flex-shrink-0 ${selectedImage ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'}`} title="Live Scan">
                     <CameraIcon />
                 </button>
@@ -1097,82 +1206,197 @@ const App: React.FC = () => {
         </footer>
       </div>
 
-      {/* --- Voice Chat Modal --- */}
+      {/* --- Permission Modal --- */}
+      {permissionRequest && (
+        <div className="fixed inset-0 bg-black/80 z-[80] flex items-center justify-center p-6 backdrop-blur-sm animate-slide-up-fade">
+             <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full text-center relative overflow-hidden shadow-2xl">
+                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500"></div>
+                 
+                 <div className={`mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-6 ${permissionStatus === 'denied' ? 'bg-red-50 dark:bg-red-900/30 text-red-500' : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'}`}>
+                    {permissionStatus === 'denied' ? <WarningIcon /> : <LockIcon />}
+                 </div>
+                 
+                 <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+                     {permissionStatus === 'denied' 
+                        ? "Permission Blocked" 
+                        : (permissionRequest === 'camera' ? "Camera Access Required" : "Microphone Access Required")}
+                 </h2>
+                 
+                 <p className="text-slate-500 dark:text-slate-400 text-sm mb-8 leading-relaxed">
+                     {permissionStatus === 'denied' ? (
+                        <>
+                           Your browser has blocked access to the {permissionRequest}.<br/><br/>
+                           <span className="font-semibold text-slate-700 dark:text-slate-300">To fix this:</span><br/>
+                           1. Click the <span className="font-bold">Lock Icon</span> 🔒 in the address bar.<br/>
+                           2. Toggle {permissionRequest === 'camera' ? 'Camera' : 'Microphone'} to <span className="text-emerald-600 font-bold">Allow</span>.<br/>
+                           3. Refresh the page.
+                        </>
+                     ) : (
+                         permissionRequest === 'camera' 
+                            ? "HealthSense needs access to your camera to scan visible symptoms in real-time. Analysis is done securely." 
+                            : "HealthSense needs access to your microphone to enable hands-free voice chat interactions."
+                     )}
+                 </p>
+                 
+                 <div className="space-y-3">
+                     {permissionStatus !== 'denied' ? (
+                         <>
+                            <button onClick={confirmPermission} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-lg shadow-indigo-200 dark:shadow-none">
+                                Allow Access
+                            </button>
+                            <button onClick={closePermissionModal} className="w-full py-3 text-slate-500 dark:text-slate-400 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition">
+                                Not Now
+                            </button>
+                         </>
+                     ) : (
+                         <button onClick={closePermissionModal} className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+                             Close
+                         </button>
+                     )}
+                 </div>
+             </div>
+        </div>
+      )}
+
+      {/* --- Voice Chat Modal (Immersive Orb) --- */}
       {isVoiceChatOpen && (
-          <div className="fixed inset-0 bg-black/90 z-[70] flex flex-col items-center justify-center p-6 backdrop-blur-sm">
-               <button onClick={stopVoiceChat} className="absolute top-6 right-6 text-slate-400 hover:text-white p-2">
+          <div className="fixed inset-0 bg-black/90 z-[70] flex flex-col items-center justify-center p-6 backdrop-blur-md">
+               <button onClick={stopVoiceChat} className="absolute top-6 right-6 text-white/50 hover:text-white p-2 rounded-full hover:bg-white/10 transition">
                    <CloseIcon />
                </button>
                
-               <div className="flex-1 flex flex-col items-center justify-center w-full max-w-lg text-center space-y-12">
-                   <div className="relative">
-                        {/* Dynamic Status Rings */}
+               <div className="flex-1 flex flex-col items-center justify-center w-full max-w-lg text-center relative">
+                   <div className="relative w-64 h-64 flex items-center justify-center">
+                        {/* Core Orb */}
+                        <div className={`absolute w-32 h-32 rounded-full blur-2xl transition-all duration-500
+                            ${isListening ? 'bg-indigo-500 animate-pulse scale-150' : 
+                              isLoading ? 'bg-amber-400 animate-spin-slow scale-110' : 
+                              isSpeaking ? 'bg-emerald-500 animate-pulse scale-125' : 
+                              'bg-slate-600 scale-100'}`} 
+                        />
+                        
+                        <div className={`relative z-10 w-40 h-40 rounded-full shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10 backdrop-blur-sm flex items-center justify-center transition-all duration-300
+                            ${isListening ? 'bg-indigo-600/30 ring-4 ring-indigo-500/50' : 
+                              isLoading ? 'bg-amber-500/20 ring-4 ring-amber-500/50' : 
+                              isSpeaking ? 'bg-emerald-500/30 ring-4 ring-emerald-500/50' : 
+                              'bg-slate-800/50 ring-2 ring-slate-500/30'}`}
+                        >
+                            <div className="text-white transform transition-transform duration-300">
+                                {isListening ? <MicrophoneIcon /> : isLoading ? <div className="w-8 h-8 border-2 border-white/50 border-t-white rounded-full animate-spin" /> : isSpeaking ? <SpeakerIcon active={true} /> : <MicrophoneIcon />}
+                            </div>
+                        </div>
+
+                        {/* Outer Ripples */}
                         {isListening && (
                             <>
-                                <div className="absolute inset-0 bg-indigo-500 rounded-full animate-ping opacity-20"></div>
-                                <div className="absolute inset-[-12px] bg-indigo-500 rounded-full animate-pulse opacity-10"></div>
+                                <div className="absolute inset-0 border border-indigo-500/30 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]" />
+                                <div className="absolute inset-4 border border-indigo-400/20 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_200ms]" />
                             </>
                         )}
-                        {isLoading && (
-                            <div className="absolute inset-0 border-4 border-t-amber-400 border-r-amber-400 border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-                        )}
-                        {isSpeaking && (
-                             <div className="absolute inset-[-20px] border-2 border-emerald-400 rounded-full opacity-50 animate-pulse"></div>
-                        )}
-
-                        <button 
-                            onClick={() => {
-                                if (isListening) recognitionRef.current.stop();
-                                else { setIsListening(true); recognitionRef.current.start(); }
-                            }}
-                            className={`w-32 h-32 rounded-full flex items-center justify-center text-white text-4xl shadow-2xl transition-all transform ${isListening ? 'bg-indigo-600 scale-110' : isLoading ? 'bg-amber-500 scale-95' : isSpeaking ? 'bg-emerald-500' : 'bg-slate-700'}`}
-                        >
-                            <MicrophoneIcon />
-                        </button>
                    </div>
                    
-                   <div className="space-y-4">
-                        <h2 className="text-2xl font-bold text-white tracking-tight">
-                            {isLoading ? "Thinking..." : isSpeaking ? "HealthSense Speaking..." : isListening ? "Listening..." : "Tap to Speak"}
+                   <div className="mt-12 space-y-4 animate-slide-up-fade">
+                        <h2 className="text-3xl font-light text-white tracking-wide">
+                            {isLoading ? "Thinking..." : isSpeaking ? "Speaking..." : isListening ? "Listening..." : "Paused"}
                         </h2>
-                        <p className="text-slate-400 text-lg font-medium min-h-[1.5em]">
-                            {inputText || (isListening ? "Say something..." : "Silence detected")}
+                        <p className="text-slate-400 text-lg font-medium h-8">
+                            {inputText ? `"${inputText}"` : isListening ? "Go ahead, I'm listening." : "..."}
                         </p>
                    </div>
-                   
-                   <p className="text-slate-500 text-sm max-w-xs mx-auto leading-relaxed">
-                       Speak your symptoms clearly. The AI will respond and listen for your follow-up automatically.
-                   </p>
+               </div>
+               
+               <div className="mb-8">
+                    <button 
+                        onClick={() => {
+                            if (isListening) recognitionRef.current.stop();
+                            else { setIsListening(true); recognitionRef.current.start(); }
+                        }}
+                        className={`px-8 py-3 rounded-full font-medium transition-all transform hover:scale-105 ${isListening ? 'bg-red-500/20 text-red-400 border border-red-500/50' : 'bg-white text-slate-900'}`}
+                    >
+                        {isListening ? 'Stop Listening' : 'Tap to Speak'}
+                    </button>
                </div>
           </div>
       )}
 
-      {/* --- Camera Modal --- */}
+      {/* --- Camera Modal (Futuristic HUD) --- */}
       {isCameraModalOpen && (
-        <div className="fixed inset-0 bg-black z-[60] flex flex-col items-center justify-center">
-            <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
+        <div className="fixed inset-0 bg-black z-[60] flex flex-col items-center justify-center overflow-hidden">
+            <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover opacity-90" />
             <canvas ref={canvasRef} className="hidden" />
             
-            {/* Scanner Overlay UI */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-                <div className="w-64 h-64 border-2 border-white/50 rounded-lg relative overflow-hidden">
-                    <div className="absolute inset-0 border-t-2 border-indigo-500 animate-[scan_2s_ease-in-out_infinite] bg-gradient-to-b from-indigo-500/20 to-transparent h-1/2" />
-                    <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-indigo-500 rounded-tl-lg" />
-                    <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-indigo-500 rounded-tr-lg" />
-                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-indigo-500 rounded-bl-lg" />
-                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-indigo-500 rounded-br-lg" />
+            {/* HUD Overlay */}
+            <div className="absolute inset-0 pointer-events-none">
+                {/* Grid Pattern */}
+                <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.1)_1px,transparent_1px)] [background-size:32px_32px] opacity-20"></div>
+                
+                {/* Scanning Beam (Only if Searching) */}
+                {scanPhase === 'SEARCHING' && (
+                    <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-60 animate-[scan-beam_2s_ease-in-out_infinite]"></div>
+                )}
+
+                {/* Central Reticle */}
+                <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out
+                    ${scanPhase === 'DETECTED' ? 'w-56 h-56' : 'w-72 h-72'}`}
+                >
+                    {/* Corners */}
+                    <div className={`absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 rounded-tl-xl transition-colors duration-500 ${scanPhase === 'DETECTED' ? 'border-emerald-400' : scanPhase === 'LOCKING' ? 'border-amber-400' : 'border-cyan-400'}`} />
+                    <div className={`absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 rounded-tr-xl transition-colors duration-500 ${scanPhase === 'DETECTED' ? 'border-emerald-400' : scanPhase === 'LOCKING' ? 'border-amber-400' : 'border-cyan-400'}`} />
+                    <div className={`absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 rounded-bl-xl transition-colors duration-500 ${scanPhase === 'DETECTED' ? 'border-emerald-400' : scanPhase === 'LOCKING' ? 'border-amber-400' : 'border-cyan-400'}`} />
+                    <div className={`absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 rounded-br-xl transition-colors duration-500 ${scanPhase === 'DETECTED' ? 'border-emerald-400' : scanPhase === 'LOCKING' ? 'border-amber-400' : 'border-cyan-400'}`} />
+                    
+                    {/* Center Crosshair */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                         <div className={`w-2 h-2 rounded-full transition-colors duration-300 ${scanPhase === 'DETECTED' ? 'bg-emerald-400' : 'bg-cyan-400/50'}`} />
+                    </div>
                 </div>
-                <p className="mt-4 text-white font-medium bg-black/50 px-3 py-1 rounded-full">Align symptom in box</p>
+
+                {/* Analysis Nodes (Random Dots) */}
+                {analysisNodes.map(node => (
+                    <div key={node.id} 
+                        className="absolute w-3 h-3 border border-emerald-400/80 rounded-full flex items-center justify-center animate-ping-slow"
+                        style={{ left: `${node.x}%`, top: `${node.y}%` }}
+                    >
+                        <div className="w-0.5 h-0.5 bg-emerald-400 rounded-full" />
+                    </div>
+                ))}
+
+                {/* Waveform Visualization (Simulated) */}
+                <div className="absolute bottom-32 left-0 right-0 h-16 flex items-center justify-center gap-1 opacity-60">
+                     {[...Array(20)].map((_, i) => (
+                         <div key={i} className={`w-1 bg-gradient-to-t from-cyan-500 to-transparent rounded-full animate-pulse`} 
+                              style={{ 
+                                  height: `${20 + Math.random() * 60}%`, 
+                                  animationDelay: `${i * 0.05}s`,
+                                  animationDuration: '0.8s'
+                              }} 
+                         />
+                     ))}
+                </div>
+
+                {/* Data Readouts */}
+                <div className="absolute top-12 right-6 space-y-2 text-right">
+                    <div className={`font-mono text-xs tracking-widest uppercase transition-colors ${scanPhase === 'DETECTED' ? 'text-emerald-400' : 'text-cyan-400'}`}>
+                        {scanPhase === 'DETECTED' ? 'ANALYSIS COMPLETE' : scanPhase === 'LOCKING' ? 'LOCKING TARGET...' : 'SCANNING SURFACE...'}
+                    </div>
+                    <div className="text-white/60 font-mono text-[10px]">ISO: 800 • EXP: +0.5</div>
+                    <div className="text-white/60 font-mono text-[10px]">
+                        CONFIDENCE: {scanPhase === 'DETECTED' ? '98.2%' : scanPhase === 'LOCKING' ? '76.4%' : 'CALCULATING...'}
+                    </div>
+                </div>
             </div>
 
-            <div className="absolute bottom-8 flex items-center gap-8 pointer-events-auto">
-                <button onClick={stopCamera} className="p-4 rounded-full bg-slate-800 text-white hover:bg-slate-700 transition"><CloseIcon /></button>
-                <button onClick={capturePhoto} className="w-20 h-20 rounded-full border-4 border-white bg-transparent flex items-center justify-center hover:bg-white/10 transition"><div className="w-16 h-16 bg-white rounded-full" /></button>
-                <button onClick={() => { stopCamera(); fileInputRef.current?.click(); }} className="p-4 rounded-full bg-slate-800 text-white hover:bg-slate-700 transition"><ImageIcon /></button>
+            <div className="absolute bottom-8 flex items-center gap-12 pointer-events-auto z-10">
+                <button onClick={stopCamera} className="p-4 rounded-full bg-black/60 text-white hover:bg-white/20 backdrop-blur-md border border-white/10 transition"><CloseIcon /></button>
+                <button onClick={capturePhoto} className={`w-24 h-24 rounded-full border-4 flex items-center justify-center hover:bg-white/10 backdrop-blur-sm transition-all transform hover:scale-105 active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.2)] ${scanPhase === 'DETECTED' ? 'border-emerald-500 shadow-emerald-900/50' : 'border-white/80'}`}>
+                    <div className={`w-18 h-18 rounded-full shadow-inner transition-colors duration-500 ${scanPhase === 'DETECTED' ? 'bg-emerald-500' : 'bg-white'}`} style={{width: 60, height: 60}} />
+                </button>
+                <button onClick={() => { stopCamera(); fileInputRef.current?.click(); }} className="p-4 rounded-full bg-black/60 text-white hover:bg-white/20 backdrop-blur-md border border-white/10 transition"><ImageIcon /></button>
             </div>
-            <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if(f){ const r=new FileReader(); r.onloadend=()=>{setSelectedImage(r.result as string);}; r.readAsDataURL(f); } stopCamera(); }} />
         </div>
       )}
+
+      <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if(f){ const r=new FileReader(); r.onloadend=()=>{setSelectedImage(r.result as string);}; r.readAsDataURL(f); } stopCamera(); }} />
 
       {/* --- Diagnostics Modal --- */}
       {isDiagnosticsOpen && (
@@ -1219,7 +1443,21 @@ const App: React.FC = () => {
         </div>
       )}
       
-      <style>{`@keyframes scan { 0% { top: 0; opacity: 0; } 50% { opacity: 1; } 100% { top: 100%; opacity: 0; } }`}</style>
+      <style>{`
+        @keyframes scan-beam {
+          0% { top: 0%; opacity: 0; }
+          20% { opacity: 0.8; }
+          80% { opacity: 0.8; }
+          100% { top: 100%; opacity: 0; }
+        }
+        @keyframes ping-slow {
+           0% { transform: scale(1); opacity: 1; }
+           100% { transform: scale(3); opacity: 0; }
+        }
+        .animate-ping-slow {
+            animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+      `}</style>
     </div>
   );
 };
