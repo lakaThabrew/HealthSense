@@ -1,0 +1,7 @@
+{
+  "name": "HealthSense",
+  "description": "A multimodal health assistant powered by Gemini 3 Pro that analyzes visible symptoms and provides safety-focused guidance.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
