@@ -1,5 +1,16 @@
-
 # HealthSense - AI Health Assistant
+
+> 🏆 **Kaggle Competition Entry**  
+> This project was created for the [**Google DeepMind - Vibe Code with Gemini 3 Pro in AI Studio**](https://www.kaggle.com/competitions/gemini-3) competition.  
+> Build with Gemini 3 and compete for **$500,000 in credits**!
+
+## 🔗 Quick Links
+
+|                                                             🎬 Introduction                                                              |                                                            🎬 Demo                                                             |                                                                                          🚀 Live App                                                                                           |
+| :--------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| [![YouTube Intro](https://img.shields.io/badge/YouTube-Introduction-red?style=for-the-badge&logo=youtube)](https://youtu.be/piTa-weydKQ) | [![YouTube Demo](https://img.shields.io/badge/YouTube-Demo-red?style=for-the-badge&logo=youtube)](https://youtu.be/AnFrAZBvfFg) | [![AI Studio App](https://img.shields.io/badge/Google-AI%20Studio-blue?style=for-the-badge&logo=google)](https://ai.studio/apps/drive/1MEdLXshwAW8p5g3b6CQ_g8k8iyZAiK87?fullscreenApplet=true) |
+
+---
 
 HealthSense is a next-generation, multimodal health companion designed to provide immediate, safety-focused symptom analysis. Powered by **Google's Gemini 2.5 Flash** model, it combines advanced computer vision with medical reasoning to help users understand visible health concerns.
 
@@ -8,97 +19,117 @@ HealthSense is a next-generation, multimodal health companion designed to provid
 ## ✨ Key Features
 
 ### 🧠 Advanced AI Analysis
-*   **Multimodal Reasoning:** Analyzes images, text descriptions, and voice input simultaneously to provide comprehensive assessments.
-*   **Smart Risk Assessment:** Automatically categorizes symptoms into **Low**, **Medium**, or **High** risk levels with structured home care advice.
+
+- **Multimodal Reasoning:** Analyzes images, text descriptions, and voice input simultaneously to provide comprehensive assessments.
+- **Smart Risk Assessment:** Automatically categorizes symptoms into **Low**, **Medium**, or **High** risk levels with structured home care advice.
 
 ### 👥 Context-Aware Modes:
-* **Tailored AI personas for specific user needs:**
-    *   **Common:** Standard adult health advice.
-    *   **Child:** Pediatric focus (gentler, behavior-oriented, checks for fevers/behavior changes).
-    *   **Pregnancy:** Obstetric focus (maternal/fetal safety, strictly avoids unsafe medication suggestions).
-    *   **Elderly:** Geriatric focus (medication interactions, skin fragility, dehydration risks).
+
+- **Tailored AI personas for specific user needs:**
+  - **Common:** Standard adult health advice.
+  - **Child:** Pediatric focus (gentler, behavior-oriented, checks for fevers/behavior changes).
+  - **Pregnancy:** Obstetric focus (maternal/fetal safety, strictly avoids unsafe medication suggestions).
+  - **Elderly:** Geriatric focus (medication interactions, skin fragility, dehydration risks).
 
 ### 👁️ Futuristic UI/UX
-*   **Biometric Camera HUD:** Real-time symptom scanner with a tactical dot-matrix grid, locking reticles, and simulated data readouts. The interface transitions through phases (`SEARCHING` → `LOCKING` → `DETECTED`) to provide feedback on image capture quality.
-*   **Interactive AI Orb:** An immersive voice interface that visualizes listening, thinking, and speaking states with fluid animations (pulsing ripples, spinning orbits).
+
+- **Biometric Camera HUD:** Real-time symptom scanner with a tactical dot-matrix grid, locking reticles, and simulated data readouts. The interface transitions through phases (`SEARCHING` → `LOCKING` → `DETECTED`) to provide feedback on image capture quality.
+- **Interactive AI Orb:** An immersive voice interface that visualizes listening, thinking, and speaking states with fluid animations (pulsing ripples, spinning orbits).
 
 ### ☾☀︎ Dark Mode
-* A fully integrated dark theme that respects system preferences and can be toggled manually.
+
+- A fully integrated dark theme that respects system preferences and can be toggled manually.
 
 ### 🗣️ Seamless Voice Interaction
-*   **Hands-Free Conversation:** A continuous loop system (Speak → AI Responds → Listen) allows for natural dialogue without repeated clicking.
-*   **Neural Text-to-Speech:** High-quality, natural-sounding voice responses generated by the `gemini-2.5-flash-preview-tts` model.
-*   **Smart Audio Handling:** Automatically strips repetitive disclaimers from the audio output to keep the conversation natural.
+
+- **Hands-Free Conversation:** A continuous loop system (Speak → AI Responds → Listen) allows for natural dialogue without repeated clicking.
+- **Neural Text-to-Speech:** High-quality, natural-sounding voice responses generated by the `gemini-2.5-flash-preview-tts` model.
+- **Smart Audio Handling:** Automatically strips repetitive disclaimers from the audio output to keep the conversation natural.
 
 ### 👤 Profile Management
-*   **Multi-User Support:** Create separate profiles for family members (e.g., "Mom", "Baby", "Grandpa").
-*   **Medical Context:** Stores age and specific medical notes (e.g., "Diabetic", "Penicillin Allergy") which are injected into the AI's system prompt for safer, personalized advice.
-*   **Guest Mode:** Allows quick access without creating a profile, though history is not saved across sessions.
+
+- **Multi-User Support:** Create separate profiles for family members (e.g., "Mom", "Baby", "Grandpa").
+- **Medical Context:** Stores age and specific medical notes (e.g., "Diabetic", "Penicillin Allergy") which are injected into the AI's system prompt for safer, personalized advice.
+- **Guest Mode:** Allows quick access without creating a profile, though history is not saved across sessions.
 
 ### 🛡️ Reliability & Safety
-*   **Robust Error Handling:** Smart retry mechanisms with exponential backoff.
-*   **Tool Fallback:** If the Google Maps location tool fails or is disabled, the AI automatically falls back to a text-only response to ensure the user still receives advice.
-*   **Permission Guidance:** Custom, user-friendly interfaces guide users through unblocking camera/microphone access if they have previously denied it.
-*   **Privacy First:** All chat history and user profiles are stored **locally in the browser** (`localStorage`). No personal health data is sent to external servers other than the transient API call to Gemini.
+
+- **Robust Error Handling:** Smart retry mechanisms with exponential backoff.
+- **Tool Fallback:** If the Google Maps location tool fails or is disabled, the AI automatically falls back to a text-only response to ensure the user still receives advice.
+- **Permission Guidance:** Custom, user-friendly interfaces guide users through unblocking camera/microphone access if they have previously denied it.
+- **Privacy First:** All chat history and user profiles are stored **locally in the browser** (`localStorage`). No personal health data is sent to external servers other than the transient API call to Gemini.
 
 ### 📍 Location
-*   **Grounding:** Finds nearby **Hospitals** and **Pharmacies** using Google Maps integration.
+
+- **Grounding:** Finds nearby **Hospitals** and **Pharmacies** using Google Maps integration.
 
 ### 📋 PDF Export
-*  Generates professional health reports containing chat history, risk assessments, and images, suitable for sharing with doctors.
+
+- Generates professional health reports containing chat history, risk assessments, and images, suitable for sharing with doctors.
 
 ### ⚙️ System Diagnostics
-* Built-in self-check tool to verify API connectivity, media permissions, and storage health.
+
+- Built-in self-check tool to verify API connectivity, media permissions, and storage health.
 
 ## 🚀 How to Use
 
 ### 1. Creating a Profile
+
 Upon launch, you can create a profile to personalize the AI's advice.
-*   **Select Mode:** Choose between *Common, Child, Pregnancy, or Elderly*.
-*   **Medical Notes:** Add relevant details like allergies or chronic conditions.
-*   *Note: You can edit or delete profiles later using the pencil/trash icons.*
+
+- **Select Mode:** Choose between _Common, Child, Pregnancy, or Elderly_.
+- **Medical Notes:** Add relevant details like allergies or chronic conditions.
+- _Note: You can edit or delete profiles later using the pencil/trash icons._
 
 ### 2. Analyzing a Symptom
+
 You have three ways to input data:
-*   **Live Scan:** Click the Camera icon. Align the symptom within the reticle. The AI will automatically "lock on" and capture the image.
-*   **Upload:** Click the Image icon to upload an existing photo from your gallery.
-*   **Voice/Text:** Type a description or use the Voice Chat to describe how you feel (e.g., "I have a throbbing pain in my left arm").
+
+- **Live Scan:** Click the Camera icon. Align the symptom within the reticle. The AI will automatically "lock on" and capture the image.
+- **Upload:** Click the Image icon to upload an existing photo from your gallery.
+- **Voice/Text:** Type a description or use the Voice Chat to describe how you feel (e.g., "I have a throbbing pain in my left arm").
 
 ### 3. Reviewing Results
+
 The AI will provide:
-*   **Visual Analysis:** Description of what it sees.
-*   **Risk Level:** Color-coded badges (Green/Amber/Red).
-*   **Action Plan:** Immediate home care steps or advice to see a doctor.
-*   **Grounding:** Links to relevant web sources or map locations if requested.
+
+- **Visual Analysis:** Description of what it sees.
+- **Risk Level:** Color-coded badges (Green/Amber/Red).
+- **Action Plan:** Immediate home care steps or advice to see a doctor.
+- **Grounding:** Links to relevant web sources or map locations if requested.
 
 ### 4. Exporting Data
+
 Click the **Report Icon** (document) in the header to download a PDF summary of your current session. This is useful for showing a timeline of symptoms to a physician.
 
 ## 🛠️ Technical Architecture
 
-*   **Frontend Framework:** React 19 with TypeScript.
-*   **Styling:** Tailwind CSS (configured for class-based Dark Mode).
-*   **State Management:** React `useState` / `useReducer` combined with `localStorage` for persistence.
-*   **AI Integration:**
-    *   **Vision/Text:** `gemini-2.5-flash` model via `@google/genai` SDK.
-    *   **Speech:** `gemini-2.5-flash-preview-tts` for audio generation.
-    *   **Tools:** Google Search/Maps grounding enabled.
-*   **Voice Input:** Web Speech API (`webkitSpeechRecognition`) for broad browser compatibility.
-*   **PDF Generation:** `jspdf` library for client-side document creation.
+- **Frontend Framework:** React 19 with TypeScript.
+- **Styling:** Tailwind CSS (configured for class-based Dark Mode).
+- **State Management:** React `useState` / `useReducer` combined with `localStorage` for persistence.
+- **AI Integration:**
+  - **Vision/Text:** `gemini-2.5-flash` model via `@google/genai` SDK.
+  - **Speech:** `gemini-2.5-flash-preview-tts` for audio generation.
+  - **Tools:** Google Search/Maps grounding enabled.
+- **Voice Input:** Web Speech API (`webkitSpeechRecognition`) for broad browser compatibility.
+- **PDF Generation:** `jspdf` library for client-side document creation.
 
 ## 🔧 Troubleshooting
 
 ### Camera/Microphone Issues
-*   **"Permission Denied":** If you accidentally clicked "Block", click the **Lock Icon** 🔒 in your browser's address bar, reset permissions for the site, and refresh the page.
-*   **Mobile Devices:** Ensure your browser app (Chrome/Safari) has permission to access the camera in your phone's OS settings.
+
+- **"Permission Denied":** If you accidentally clicked "Block", click the **Lock Icon** 🔒 in your browser's address bar, reset permissions for the site, and refresh the page.
+- **Mobile Devices:** Ensure your browser app (Chrome/Safari) has permission to access the camera in your phone's OS settings.
 
 ### AI Not Responding
-*   **API Key:** Ensure a valid Google Gemini API key is set in the environment variables.
-*   **Network:** The app requires an active internet connection. Use the **System Status** tool in the sidebar to ping the API.
+
+- **API Key:** Ensure a valid Google Gemini API key is set in the environment variables.
+- **Network:** The app requires an active internet connection. Use the **System Status** tool in the sidebar to ping the API.
 
 ## 🔒 Safety Protocols
 
 HealthSense is built with strict safety guardrails:
+
 1.  **Medical Disclaimer:** Appended to every response.
 2.  **Risk Escalation:** The AI is systematically instructed to identify "Red Flags" and advise immediate medical attention for High Risk symptoms.
 3.  **Local Data:** Sensitive health data is not stored in a centralized database, ensuring user privacy.
