@@ -43,6 +43,18 @@ const TrashIcon = () => (
   </svg>
 );
 
+const PencilIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+  </svg>
+);
+
+const GearIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 1 1 0-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 0 1-1.44-4.282m3.102.069a18.03 18.03 0 0 1-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 0 1 8.835 2.535M10.34 6.66a23.847 23.847 0 0 0 8.835-2.535m0 0A23.74 23.74 0 0 0 18.795 3m.38 1.125a23.91 23.91 0 0 1 1.014 5.795" />
+    </svg>
+);
+
 const ImageIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
       <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
@@ -186,6 +198,7 @@ const App: React.FC = () => {
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isNewProfileMode, setIsNewProfileMode] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   
   // Permissions State
   const [permissionRequest, setPermissionRequest] = useState<'camera' | 'microphone' | null>(null);
@@ -585,7 +598,6 @@ const App: React.FC = () => {
         return;
     }
 
-    // Stop previous audio if user interrupts
     stopAudio();
 
     const currentImage = selectedImage;
@@ -621,12 +633,10 @@ const App: React.FC = () => {
           groundingMetadata
       }]);
       
-      // Voice Output Logic
       const shouldSpeak = voiceMode || voiceChatActiveRef.current;
       
       if (shouldSpeak) {
           playResponseAudio(cleanText, () => {
-              // If in Voice Chat mode, restart listening after AI finishes speaking (loop)
               if (voiceChatActiveRef.current) {
                   setIsListening(true);
                   try { recognitionRef.current.start(); } catch(e) {}
@@ -653,30 +663,156 @@ const App: React.FC = () => {
     setSessions(newSessions);
     localStorage.setItem(SESSIONS_INDEX_KEY, JSON.stringify(newSessions));
     localStorage.removeItem(`${SESSION_PREFIX}${sessionId}`);
+    
+    // If we deleted the current session, load another or start new
     if (currentSessionId === sessionId) {
-        newSessions.length > 0 ? loadSession(newSessions[0].id) : createNewSession(currentProfileId);
+        if (newSessions.length > 0) {
+            loadSession(newSessions[0].id);
+        } else {
+            createNewSession(currentProfileId);
+        }
     }
+  };
+  
+  const handleClearChat = (e?: React.MouseEvent) => {
+      if(e) e.stopPropagation();
+      if (!window.confirm("Clear conversation? This cannot be undone.")) return;
+      
+      // Remove data
+      if (currentSessionId) {
+          localStorage.removeItem(`${SESSION_PREFIX}${currentSessionId}`);
+          
+          // Remove from list
+          const updatedSessions = sessions.filter(s => s.id !== currentSessionId);
+          setSessions(updatedSessions);
+          localStorage.setItem(SESSIONS_INDEX_KEY, JSON.stringify(updatedSessions));
+      }
+
+      stopAudio();
+      // Start fresh
+      createNewSession(currentProfileId);
   };
 
   // --- Profile Management ---
   const saveProfile = (name: string, age: string, details: string, mode: HealthMode) => {
-      const newProfile: Profile = {
-          id: Date.now().toString(),
-          name, age, details,
-          avatarColor: AVATAR_COLORS[profiles.length % AVATAR_COLORS.length],
-          mode
-      };
-      const updated = [...profiles, newProfile];
-      setProfiles(updated);
-      localStorage.setItem(PROFILES_KEY, JSON.stringify(updated));
-      
-      setIsProfileModalOpen(false);
-      setIsNewProfileMode(false);
-      
-      if (view === 'AUTH') {
-        loginProfile(newProfile.id);
+      if (editingProfile) {
+          // Update Mode
+          const updatedProfiles = profiles.map(p => p.id === editingProfile.id ? { ...p, name, age, details, mode } : p);
+          setProfiles(updatedProfiles);
+          localStorage.setItem(PROFILES_KEY, JSON.stringify(updatedProfiles));
+          setEditingProfile(null);
+          setIsNewProfileMode(false);
+          setIsProfileModalOpen(false);
+          // If editing current profile, reload context
+          if (currentProfileId === editingProfile.id) {
+              startNewChat(messages.map(m => {
+                   const parts: any[] = [];
+                   if (m.text) parts.push({ text: m.text });
+                   return { role: m.role, parts };
+              }) as any, updatedProfiles.find(p => p.id === currentProfileId));
+          }
+      } else {
+          // Create Mode
+          const newProfile: Profile = {
+              id: Date.now().toString(),
+              name, age, details,
+              avatarColor: AVATAR_COLORS[profiles.length % AVATAR_COLORS.length],
+              mode
+          };
+          const updated = [...profiles, newProfile];
+          setProfiles(updated);
+          localStorage.setItem(PROFILES_KEY, JSON.stringify(updated));
+          
+          setIsProfileModalOpen(false);
+          setIsNewProfileMode(false);
+          
+          if (view === 'AUTH') {
+            loginProfile(newProfile.id);
+          }
       }
   };
+  
+  const handleDeleteProfile = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      if (!window.confirm("Delete this profile? All history for this user will be lost.")) return;
+
+      // Remove sessions for this profile
+      const profileSessions = sessions.filter(s => s.profileId === id);
+      profileSessions.forEach(s => localStorage.removeItem(`${SESSION_PREFIX}${s.id}`));
+      const remainingSessions = sessions.filter(s => s.profileId !== id);
+      setSessions(remainingSessions);
+      localStorage.setItem(SESSIONS_INDEX_KEY, JSON.stringify(remainingSessions));
+
+      // Remove profile
+      const remainingProfiles = profiles.filter(p => p.id !== id);
+      setProfiles(remainingProfiles);
+      localStorage.setItem(PROFILES_KEY, JSON.stringify(remainingProfiles));
+
+      if (currentProfileId === id) {
+          logout();
+      }
+  };
+  
+  const handleEditProfile = (e: React.MouseEvent, profile: Profile) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setEditingProfile(profile);
+      setIsNewProfileMode(true);
+      if (view === 'CHAT') {
+          setIsProfileModalOpen(true);
+      }
+  };
+
+  const renderProfileForm = () => (
+      <div className="animate-slide-up-fade">
+          <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white">{editingProfile ? 'Edit Profile' : 'Create Profile'}</h2>
+              <button onClick={() => { setIsNewProfileMode(false); setEditingProfile(null); setIsProfileModalOpen(false); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">Cancel</button>
+          </div>
+          <form onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.target as any;
+              saveProfile(form.pName.value, form.pAge.value, form.pNotes.value, form.pMode.value);
+          }} className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-1">
+                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">Name</label>
+                      <input name="pName" defaultValue={editingProfile?.name} required placeholder="e.g. Sarah" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">Age</label>
+                      <input name="pAge" defaultValue={editingProfile?.age} required placeholder="30" type="number" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+              </div>
+              
+              <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">Mode</label>
+                  <select name="pMode" defaultValue={editingProfile?.mode || 'COMMON'} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none">
+                      <option value="COMMON">Common (Adult)</option>
+                      <option value="CHILD">Child / Pediatric</option>
+                      <option value="PREGNANCY">Pregnancy</option>
+                      <option value="ELDERLY">Elderly / Geriatric</option>
+                  </select>
+              </div>
+
+              <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">Medical Notes (Optional)</label>
+                  <input name="pNotes" defaultValue={editingProfile?.details} placeholder="e.g. Diabetic, Allergies" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+              </div>
+              <button type="submit" className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 mt-2">{editingProfile ? 'Save Changes' : 'Get Started'}</button>
+          </form>
+          
+          {editingProfile && (
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <button type="button" onClick={(e) => { handleDeleteProfile(e, editingProfile.id); setIsProfileModalOpen(false); }} className="w-full text-red-500 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
+                      <TrashIcon /> Delete Profile
+                  </button>
+              </div>
+          )}
+      </div>
+  );
 
   const switchProfile = (id: string) => {
       if(window.confirm("Switch to this profile?")) {
@@ -921,16 +1057,23 @@ const App: React.FC = () => {
                           <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider text-center mb-4">Select Profile</p>
                           <div className="grid grid-cols-1 gap-3 max-h-60 overflow-y-auto pr-2">
                               {profiles.map(p => (
-                                  <button key={p.id} onClick={() => loginProfile(p.id)} className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-700 transition-all group">
-                                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl text-white font-bold shadow-sm ${p.avatarColor}`}>
+                                  <div key={p.id} onClick={() => loginProfile(p.id)} className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-700 transition-all group cursor-pointer relative">
+                                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl text-white font-bold shadow-sm flex-shrink-0 ${p.avatarColor}`}>
                                         {p.name[0].toUpperCase()}
                                       </div>
-                                      <div className="text-left flex-1">
-                                          <div className="font-bold text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{p.name}</div>
+                                      <div className="text-left flex-1 min-w-0">
+                                          <div className="font-bold text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">{p.name}</div>
                                           <div className="text-xs text-slate-400">{p.mode} Mode • {p.age} yrs</div>
                                       </div>
-                                      <div className="text-slate-300 group-hover:text-indigo-500"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg></div>
-                                  </button>
+                                      <div className="flex items-center gap-1">
+                                          <button onClick={(e) => handleEditProfile(e, p)} className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors z-10" title="Edit Profile">
+                                              <PencilIcon />
+                                          </button>
+                                          <button onClick={(e) => handleDeleteProfile(e, p.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors z-10" title="Delete Profile">
+                                              <TrashIcon />
+                                          </button>
+                                      </div>
+                                  </div>
                               ))}
                           </div>
                           <button onClick={() => { setIsNewProfileMode(true); }} className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 rounded-xl hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-all font-medium mt-4 flex items-center justify-center gap-2">
@@ -938,44 +1081,7 @@ const App: React.FC = () => {
                           </button>
                       </div>
                   ) : (
-                      <div className="animate-slide-up-fade">
-                          <div className="flex items-center justify-between mb-6">
-                              <h2 className="text-xl font-bold text-slate-800 dark:text-white">Create Profile</h2>
-                              {profiles.length > 0 && <button onClick={() => setIsNewProfileMode(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">Cancel</button>}
-                          </div>
-                          <form onSubmit={(e) => {
-                              e.preventDefault();
-                              const form = e.target as any;
-                              saveProfile(form.pName.value, form.pAge.value, form.pNotes.value, form.pMode.value);
-                          }} className="space-y-4">
-                              <div className="grid grid-cols-3 gap-3">
-                                  <div className="col-span-2 space-y-1">
-                                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">Name</label>
-                                      <input name="pName" required placeholder="e.g. Sarah" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                  </div>
-                                  <div className="space-y-1">
-                                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">Age</label>
-                                      <input name="pAge" required placeholder="30" type="number" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                  </div>
-                              </div>
-                              
-                              <div className="space-y-1">
-                                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">Mode</label>
-                                  <select name="pMode" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none">
-                                      <option value="COMMON">Common (Adult)</option>
-                                      <option value="CHILD">Child / Pediatric</option>
-                                      <option value="PREGNANCY">Pregnancy</option>
-                                      <option value="ELDERLY">Elderly / Geriatric</option>
-                                  </select>
-                              </div>
-
-                              <div className="space-y-1">
-                                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">Medical Notes (Optional)</label>
-                                  <input name="pNotes" placeholder="e.g. Diabetic, Allergies" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                              </div>
-                              <button type="submit" className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 mt-2">Get Started</button>
-                          </form>
-                      </div>
+                      renderProfileForm()
                   )}
 
                   {/* Continue as Guest Button */}
@@ -1015,7 +1121,7 @@ const App: React.FC = () => {
         {/* Profile Card Sidebar */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
             {currentProfile ? (
-                <div className="w-full flex items-center gap-3 p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+                <div className="w-full flex items-center gap-3 p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm relative group">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shadow-sm ${currentProfile.avatarColor}`}>
                         {currentProfile.name[0].toUpperCase()}
                     </div>
@@ -1023,6 +1129,9 @@ const App: React.FC = () => {
                         <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{currentProfile?.name}</p>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">{currentProfile?.mode}</p>
                     </div>
+                    <button onClick={(e) => handleEditProfile(e, currentProfile)} className="absolute right-2 p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all z-10" title="Edit Profile Details">
+                        <GearIcon />
+                    </button>
                 </div>
             ) : (
                 <button onClick={() => setView('AUTH')} className="w-full flex items-center gap-3 p-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-900 hover:border-indigo-300 transition-all text-left bg-slate-50/50 dark:bg-slate-800/50">
@@ -1048,7 +1157,7 @@ const App: React.FC = () => {
                         <h3 className={`text-sm font-medium truncate ${currentSessionId === session.id ? 'text-indigo-900 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300'}`}>{session.title}</h3>
                         <p className="text-xs text-slate-400 truncate mt-0.5">{session.preview}</p>
                     </div>
-                    <button onClick={(e) => deleteSession(e, session.id)} className={`absolute right-2 top-3 p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors ${currentSessionId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><TrashIcon /></button>
+                    <button onClick={(e) => deleteSession(e, session.id)} className={`absolute right-2 top-3 p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors`}><TrashIcon /></button>
                 </div>
             ))}
             {sessions.filter(s => s.profileId === (currentProfileId || "")).length === 0 && (
@@ -1108,7 +1217,7 @@ const App: React.FC = () => {
                 )}
                 <div className="w-px h-6 bg-slate-200 dark:bg-slate-800 mx-1"></div>
                 <button onClick={exportReport} className="p-2 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-full transition-colors" title="Export Report"><ReportIcon /></button>
-                <button onClick={() => { if(window.confirm("Clear conversation?")) { setMessages([{ id: 'welcome', role: Role.MODEL, text: WELCOME_MSG }]); startNewChat(undefined, currentProfile || undefined); stopAudio(); } }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-colors"><TrashIcon /></button>
+                <button onClick={(e) => handleClearChat(e)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-colors" title="Clear Conversation"><TrashIcon /></button>
             </div>
         </header>
 
@@ -1205,6 +1314,15 @@ const App: React.FC = () => {
             </div>
         </footer>
       </div>
+      
+      {/* --- Profile Editing Modal (When logged in) --- */}
+      {isProfileModalOpen && (
+          <div className="fixed inset-0 bg-black/50 z-[90] flex items-center justify-center p-4 backdrop-blur-sm">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md p-8 relative">
+                   {renderProfileForm()}
+              </div>
+          </div>
+      )}
 
       {/* --- Permission Modal --- */}
       {permissionRequest && (
